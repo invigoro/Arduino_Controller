@@ -20,12 +20,12 @@ import java.util.UUID;
 
 
 public class ledControl extends ActionBarActivity {
-
-    Button forward, reverse, btnDis;
+    public static final int MAX_SPEED = 9;
+    Button forward, reverse, btnDis, servo;
     SeekBar leftBar, rightBar;
     TextView speed;
     String address = null;
-    int leftTotal = 0; int rightTotal = 0;
+    int leftTotal = MAX_SPEED; int rightTotal = MAX_SPEED;
     private ProgressDialog progress;
     BluetoothAdapter myBluetooth = null;
     BluetoothSocket btSocket = null;
@@ -45,30 +45,24 @@ public class ledControl extends ActionBarActivity {
         setContentView(R.layout.activity_led_control);
 
         //call the widgtes
-        forward = (Button)findViewById(R.id.button2);
-        reverse = (Button)findViewById(R.id.button3);
+        //forward = (Button)findViewById(R.id.button2);
+        //reverse = (Button)findViewById(R.id.button3);
+        servo = (Button)findViewById(R.id.button2);
         btnDis = (Button)findViewById(R.id.button4);
         leftBar = (SeekBar)findViewById(R.id.leftBar);
         rightBar = (SeekBar)findViewById(R.id.rightBar);
         speed = (TextView)findViewById(R.id.lumn);
+        leftBar.setProgress(MAX_SPEED);
+        rightBar.setProgress(MAX_SPEED);
 
         new ConnectBT().execute(); //Call the class to connect
 
-        //commands to be sent to bluetooth
-        forward.setOnClickListener(new View.OnClickListener()
+        servo.setOnClickListener(new View.OnClickListener()
         {
             @Override
             public void onClick(View v)
             {
-                moveForward();      //method to turn on
-            }
-        });
-
-        reverse.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v)
-            {
-                moveReverse();   //method to turn off
+                moveServo();
             }
         });
 
@@ -81,16 +75,58 @@ public class ledControl extends ActionBarActivity {
             }
         });
 
-        leftBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        /**FOR THE FOLLOWING METHODS
+         * SENDING THE INFORMATION TO THE BLUETOOTH STREAM IS CALLED TWICE
+         * ONCE, THEN DELAY 1 MILLISECOND, THEN CALLED ONCE MORE
+         * THIS IS TO ENSURE THE MICROCONTROLLER HAS TIME TO ACCOUNT FOR MANY BACK TO BACK INSTRUCTIONS
+         * AS THIS DELAY IS ONLY 1 MILLISECOND,
+         * IT STILL ALLOWS FOR MORE THAN 500 INSTRUCTIONS OT BE SENT PER SECOND
+         */
+
+        leftBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {  //called whenever the left seekbar moves
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser==true)
                 {
-                    leftTotal = progress;
-                    speed.setText(String.valueOf((progress + rightTotal)*5) + "%");
+                    String toReturn = "";
+                    leftTotal = (int)progress;
+                    if (leftTotal == MAX_SPEED)
+                    {
+                        toReturn = "FL0";
+                    }
+                    else if(leftTotal > MAX_SPEED && leftTotal <= MAX_SPEED * 2)
+                    {
+                        toReturn = "FL" + String.valueOf((leftTotal - MAX_SPEED) * 20);
+                    }
+                    else if(leftTotal < MAX_SPEED && leftTotal >= 0)
+                    {
+                        toReturn = "BL" + String.valueOf((MAX_SPEED - leftTotal) * 20);
+                    }
+                    else {
+                        msg("Error");
+                    }
+                    //speed.setText(toReturn + "   ");
+                    speed.setText(String.valueOf(leftTotal - MAX_SPEED) + " " + String.valueOf(rightTotal - MAX_SPEED));
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                    }
                     try
                     {
-                        btSocket.getOutputStream().write(("L" + String.valueOf(leftTotal)).getBytes());
+                        btSocket.getOutputStream().write((toReturn + ":").toString().getBytes());
+                    }
+                    catch (IOException e)
+                    {
+                        msg("Error");
+
+                    }
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                    }
+                    try
+                    {
+                        btSocket.getOutputStream().write((toReturn + ":").toString().getBytes());
                     }
                     catch (IOException e)
                     {
@@ -107,7 +143,35 @@ public class ledControl extends ActionBarActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-
+                leftBar.setProgress(MAX_SPEED);
+                leftTotal = MAX_SPEED;
+                speed.setText(String.valueOf(leftTotal - MAX_SPEED) + " " + String.valueOf(rightTotal - MAX_SPEED));
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
+                try
+                {
+                    btSocket.getOutputStream().write("FL0:".toString().getBytes());
+                    //msg("FL0");
+                }
+                catch(IOException e)
+                {
+                    //msg("Error");
+                }
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
+                try
+                {
+                    btSocket.getOutputStream().write("FL0:".toString().getBytes());
+                    //msg("FL0");
+                }
+                catch(IOException e)
+                {
+                    //msg("Error");
+                }
             }
         });
         rightBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -115,11 +179,47 @@ public class ledControl extends ActionBarActivity {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser==true)
                 {
-                    rightTotal = progress;
-                    speed.setText(String.valueOf((progress + rightTotal)*5) + "%");
+                    String toReturn = "";
+                    rightTotal = (int)progress;
+                    if (rightTotal == MAX_SPEED)
+                    {
+                        toReturn = "FR0";
+                    }
+                    else if(rightTotal > MAX_SPEED && rightTotal <= MAX_SPEED * 2)
+                    {
+                        toReturn = "FR" + String.valueOf((rightTotal - MAX_SPEED) * 20);
+                    }
+                    else if(rightTotal < MAX_SPEED && rightTotal >= 0)
+                    {
+                        toReturn = "BR" + String.valueOf((MAX_SPEED - rightTotal) * 20);
+                    }
+                    else {
+                        //msg("Error");
+                    }
+                    //speed.setText("   " + toReturn);
+                    speed.setText(String.valueOf(leftTotal - MAX_SPEED) + " " + String.valueOf(rightTotal - MAX_SPEED));
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                    }
                     try
                     {
-                        btSocket.getOutputStream().write(("R" + String.valueOf(rightTotal)).getBytes());
+                        //msg(toReturn);
+                        btSocket.getOutputStream().write((toReturn + ":").toString().getBytes());
+                    }
+                    catch (IOException e)
+                    {
+                        msg("Error");
+
+                    }
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                    }
+                    try
+                    {
+                        //msg(toReturn);
+                        btSocket.getOutputStream().write((toReturn + ":").toString().getBytes());
                     }
                     catch (IOException e)
                     {
@@ -136,7 +236,33 @@ public class ledControl extends ActionBarActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-
+                rightBar.setProgress(MAX_SPEED);
+                rightTotal = MAX_SPEED;
+                speed.setText(String.valueOf(leftTotal - MAX_SPEED) + " " + String.valueOf(rightTotal - MAX_SPEED));
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
+                try
+                {
+                    btSocket.getOutputStream().write("FR0:".toString().getBytes());
+                }
+                catch(IOException e)
+                {
+                    msg("Error");
+                }
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
+                try
+                {
+                    btSocket.getOutputStream().write("FR0:".toString().getBytes());
+                }
+                catch(IOException e)
+                {
+                    msg("Error");
+                }
             }
         });
     }
@@ -156,30 +282,15 @@ public class ledControl extends ActionBarActivity {
 
     }
 
-    private void moveForward()
+    private void moveServo()
     {
-        if (btSocket!=null)
+        if(btSocket!= null)
         {
             try
             {
-                btSocket.getOutputStream().write("F".toString().getBytes());
+                btSocket.getOutputStream().write("SV00:".toString().getBytes());
             }
-            catch (IOException e)
-            {
-                msg("Error");
-            }
-        }
-    }
-
-    private void moveReverse()
-    {
-        if (btSocket!=null)
-        {
-            try
-            {
-                btSocket.getOutputStream().write("B".toString().getBytes());
-            }
-            catch (IOException e)
+            catch(IOException e)
             {
                 msg("Error");
             }
@@ -191,28 +302,6 @@ public class ledControl extends ActionBarActivity {
     {
         Toast.makeText(getApplicationContext(),s,Toast.LENGTH_LONG).show();
     }
-
-    /*@Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_led_control, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }*/
 
     private class ConnectBT extends AsyncTask<Void, Void, Void>  // UI thread
     {
